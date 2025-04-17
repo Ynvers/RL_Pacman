@@ -25,10 +25,11 @@ CELL_SIZE = 20
 board = Board(board_layout, CELL_SIZE, BLUE, YELLOW)
 
 # Initialise the player
-#pacman = player.Player((100, 100), 5, 20, 0, [])
+pacman = player.Player([100, 100], 5, 10, 0, [])
 
 # Main loop
 running = True
+clock = pygame.time.Clock()
 
 while running:
     #print("Boucle principale en cours...")
@@ -36,11 +37,33 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
+        #keyboard events
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a] or keys[pygame.K_UP]:
+            pacman.move("UP")
+            if pacman.check_collision(board.layout):
+                pacman.move("DOWN")
+        if keys[pygame.K_d] or keys[pygame.K_DOWN]:
+            pacman.move("DOWN")
+            if pacman.check_collision(board.layout):
+                pacman.move("UP")
+        if keys[pygame.K_q] or keys[pygame.K_LEFT]:
+            pacman.move("LEFT")
+            if pacman.check_collision(board.layout):
+                pacman.move("RIGHT")
+        if keys[pygame.K_s] or keys[pygame.K_RIGHT]:
+            pacman.move("RIGHT")
+            if pacman.check_collision(board.layout):
+                pacman.move("LEFT")
+
         # Fill the screen with black
         screen.fill(BLACk)
 
         # Dessiner la grille
         board.draw(screen)
+
+        # Draw the player
+        pacman.draw(screen)
 
         # Update the display
         pygame.display.flip()
