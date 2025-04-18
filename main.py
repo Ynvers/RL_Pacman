@@ -25,7 +25,13 @@ CELL_SIZE = 20
 board = Board(board_layout, CELL_SIZE, BLUE, YELLOW)
 
 # Initialise the player
-pacman = player.Player([100, 100], 5, 10, 0, [])
+player_start_position = board.get_player_start_position()
+if player_start_position is None:
+    raise ValueError("Player start position not found in board layout.")
+else:
+    print("player start position found: ", player_start_position)
+    pacman = player.Player(player_start_position, 5, CELL_SIZE, 0, [])
+
 
 # Main loop
 running = True
@@ -40,21 +46,21 @@ while running:
         #keyboard events
         keys = pygame.key.get_pressed()
         if keys[pygame.K_a] or keys[pygame.K_UP]:
-            pacman.move("UP")
+            pacman.move("UP", board.layout)
             if pacman.check_collision(board.layout):
-                pacman.move("DOWN")
+                pacman.move("DOWN", board.layout)
         if keys[pygame.K_d] or keys[pygame.K_DOWN]:
-            pacman.move("DOWN")
+            pacman.move("DOWN", board.layout)
             if pacman.check_collision(board.layout):
-                pacman.move("UP")
+                pacman.move("UP", board.layout)
         if keys[pygame.K_q] or keys[pygame.K_LEFT]:
-            pacman.move("LEFT")
+            pacman.move("LEFT", board.layout)
             if pacman.check_collision(board.layout):
-                pacman.move("RIGHT")
+                pacman.move("RIGHT", board.layout)
         if keys[pygame.K_s] or keys[pygame.K_RIGHT]:
-            pacman.move("RIGHT")
+            pacman.move("RIGHT", board.layout)
             if pacman.check_collision(board.layout):
-                pacman.move("LEFT")
+                pacman.move("LEFT", board.layout)
 
         # Fill the screen with black
         screen.fill(BLACk)

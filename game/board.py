@@ -16,7 +16,7 @@ class Board:
                 x = col_index * self.cell_size
                 y = row_index * self.cell_size
                 if cell == "#":
-                    pygame.draw.rect(screen, self.wall_color, ((x, y), (self.cell_size, self.cell_size//2)))
+                    pygame.draw.rect(screen, self.wall_color, ((x, y), (self.cell_size, self.cell_size)))
                 elif cell == ".":
                     pygame.draw.circle(screen, self.point_color, (x + self.cell_size // 2, y + self.cell_size // 2), 3)
                 elif cell == "o":
@@ -28,7 +28,21 @@ class Board:
                 elif cell == "G":   
                     pygame.draw.rect(screen, (255, 0, 0), ((x, y), (self.cell_size, self.cell_size)))
 
-                    
+    def get_player_start_position(self):
+        """
+        Get the player's start position on the board
+        """
+        for row_index, row in enumerate(self.layout):
+            for col_index, cell in enumerate(row):
+                if cell == "P":
+                    self.layout[row_index][col_index] = " "
+                    #return [col_index * self.cell_size, row_index * self.cell_size]    
+                    return [
+                        col_index * self.cell_size + self.cell_size // 2 - self.cell_size // 2,
+                        row_index * self.cell_size + self.cell_size // 2 - self.cell_size // 2
+                    ]
+        return None
+            
 #Layout of the board
 board_layout = [
     list("############################"),
@@ -40,7 +54,7 @@ board_layout = [
     list("#####.##.##########.##.#####"),
     list("    #.##.##########.##.#    "),
     list("#####.##.###    ###.##.#####"),
-    list("......##.###    ###.##......"),
+    list("P.....##.###    ###.##......"),
     list("#####.##.##########.##.#####"),
     list("    #.##.##########.##.#    "),
     list("#####.##.##########.##.#####"),
@@ -48,8 +62,8 @@ board_layout = [
     list("#.####.#####.##.#####.####.#"),
     list("#o####.#####.##.#####.####o#"),
     list("#...##................##...#"),
-    list("###.##.##########.##.##.####"),
-    list("###.##.##########.##.##.####"),
+    list("###.##.###########.##.##.###"),
+    list("###.##.###########.##.##.###"),
     list("#..........................#"),
     list("############################")
 ]
