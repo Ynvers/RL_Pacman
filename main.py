@@ -41,7 +41,7 @@ if ghosts_start_positions is None:
 else:
     print("ghosts start position found: ", ghosts_start_positions)
     ghosts = [
-        Ghost.Ghost(position, 2, CELL_SIZE, RED) for position in ghosts_start_positions
+        Ghost.Ghost(position, 2, CELL_SIZE, RED, "BFS") for position in ghosts_start_positions
     ]
     print("ghosts created")
 
@@ -103,7 +103,15 @@ while running:
 
     # Draw the ghosts
     for ghost in ghosts:
+        ghost.move(board.layout, pacman.position)
         ghost.draw(screen)
+
+        if ghost.check_collision_with_pacman(pacman.position):
+            game_over = True
+            pacman.game_won = False
+            print("Game Over! Un fantôme vous a attrapé!")
+            running = False
+            break
 
     # Afficher le timer et le score
     timer_text = font.render(f"Time: {int(remaining_time)}s", True, WHITE)
@@ -126,6 +134,14 @@ while running:
 
     # Update the display
     pygame.display.flip()
+    clock.tick(60)
+
+# Afficher le résultat final
+if game_over:
+    if pacman.game_won:
+        print("Félicitations! Vous avez gagné!")
+    else:
+        print("Game Over! Un fantôme vous a attrapé!")
 
 pygame.quit()
 print("Fin du jeu")
