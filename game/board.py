@@ -38,15 +38,33 @@ class Board:
                     self.layout[row_index][col_index] = " "
                     #return [col_index * self.cell_size, row_index * self.cell_size]    
                     return [
-                        col_index * self.cell_size + self.cell_size // 2 - self.cell_size // 2,
-                        row_index * self.cell_size + self.cell_size // 2 - self.cell_size // 2
+                        col_index * self.cell_size,
+                        row_index * self.cell_size
                     ]
         return None
+    
+    def get_ghost_start_position(self):
+        """
+        Get the ghosts's starts position on the board
+        """
+        ghost_positions = []
+        for row_index, row in enumerate(self.layout):
+            for col_index, cell in enumerate(row):
+                if cell == "G":
+                    ghost_positions.append(
+                        [
+                            col_index * self.cell_size, 
+                            row_index * self.cell_size
+                        ]
+                    )
+                    self.layout[row_index][col_index] = " "
+        return ghost_positions
+                    
             
 #Layout of the board
 board_layout = [
     list("############################"),
-    list("#............##............#"),
+    list("#.G..........##...........G#"),
     list("#.####.#####.##.#####.####.#"),
     list("#o####.#####.##.#####.####o#"),
     list("#.####.#####.##.#####.####.#"),
@@ -61,7 +79,7 @@ board_layout = [
     list("#............##............#"),
     list("#.####.#####.##.#####.####.#"),
     list("#o####.#####.##.#####.####o#"),
-    list("#...##................##...#"),
+    list("#...##.......G........##...#"),
     list("###.##.###########.##.##.###"),
     list("###.##.###########.##.##.###"),
     list("#..........................#"),

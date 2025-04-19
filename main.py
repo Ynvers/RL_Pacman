@@ -1,5 +1,5 @@
 import game.player as player
-import game.ghost as ghost
+import game.ghost as Ghost
 import pygame
 from game.board import board_layout, Board
 import time
@@ -18,6 +18,7 @@ BLACk = (0, 0, 0)
 WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
 BLUE = (0, 0, 255)
+RED = (255, 0, 0)
 
 #Set up the cell size
 CELL_SIZE = 20
@@ -33,7 +34,18 @@ else:
     print("player start position found: ", player_start_position)
     pacman = player.Player(player_start_position, 4, CELL_SIZE, [])
 
-# Initialisation du timer
+# Initialise the ghosts
+ghosts_start_positions = board.get_ghost_start_position()
+if ghosts_start_positions is None:
+    raise ValueError("Ghosts start position not found in board layout.")
+else:
+    print("ghosts start position found: ", ghosts_start_positions)
+    ghosts = [
+        Ghost.Ghost(position, 2, CELL_SIZE, RED) for position in ghosts_start_positions
+    ]
+    print("ghosts created")
+
+# Initialisation the timer
 start_time = time.time()
 game_duration = 60  # 60 secondes
 total_points = sum(row.count('.') + row.count('o') for row in board.layout)
@@ -88,6 +100,10 @@ while running:
 
     # Draw the player
     pacman.draw(screen)
+
+    # Draw the ghosts
+    for ghost in ghosts:
+        ghost.draw(screen)
 
     # Afficher le timer et le score
     timer_text = font.render(f"Time: {int(remaining_time)}s", True, WHITE)
