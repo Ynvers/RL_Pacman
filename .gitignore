@@ -1,2 +1,4 @@
 pacman
 __pycache__
+*.py[cod]
+*.pyo
