@@ -37,7 +37,7 @@ class Ghost:
         start = (int(self.position[0] // self.size), int(self.position[1] // self.size))
         target = (int(target_position[0] // self.size), int(target_position[1] // self.size))
 
-        print(f"Start: {start}, Target: {target}")  # Debug print
+        #print(f"Start: {start}, Target: {target}")  # Debug print
 
         # Initialize the queue and visited set
         to_visit = [(start, [])]  # (position, path)
@@ -64,7 +64,7 @@ class Ghost:
                         if next_pos not in visited:
                             new_path = path + [direction]
                             to_visit.append((next_pos, new_path))
-                            print(f"Added to queue: pos={next_pos}, path={new_path}")  # Debug print
+                            #print(f"Added to queue: pos={next_pos}, path={new_path}")  # Debug print
 
         print("No path found")  # Debug print
         return None

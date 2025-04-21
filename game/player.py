@@ -88,3 +88,9 @@ class Player:
             print(f"Score updated: {self.score}")
         return False
 
+    def reset(self, start_position):
+        """Reset player to initial state"""
+        self.position = start_position
+        self.score = 0
+        self.game_won = False
+

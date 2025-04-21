@@ -6,6 +6,7 @@ class Board:
         self.cell_size = cell_size
         self.wall_color = wall_color
         self.point_color = point_color
+        self.initial_layout = [row[:] for row in self.layout]  # Deep copy of initial layout
 
     def draw(self, screen):
         """
@@ -59,6 +60,10 @@ class Board:
                     )
                     self.layout[row_index][col_index] = " "
         return ghost_positions
+
+    def reset(self):
+        """Reset the board to its initial state"""
+        self.layout = [row[:] for row in self.initial_layout]
                     
             
 #Layout of the board

@@ -2,7 +2,10 @@ import game.player as player
 import game.ghost as Ghost
 import pygame
 from game.board import board_layout, Board
+from game.agent import Agent
 import time
+import matplotlib.pyplot as plt
+import numpy as np
 
 #Pygame setup
 pygame.init()
@@ -50,6 +53,15 @@ start_time = time.time()
 game_duration = 60  # 60 secondes
 total_points = sum(row.count('.') + row.count('o') for row in board.layout)
 
+# Initialisation de l'agent
+agent = Agent()
+
+# Add these variables to track the performance of the agent
+episode = 0
+max_episodes = 10
+scores = []
+previous_score = 0
+epsilons = []
 
 # Main loop
 running = True
@@ -58,83 +70,91 @@ font = pygame.font.Font(None, 36)
 clock = pygame.time.Clock()
 
 while running:
-    #print("Boucle principale en cours...")
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
 
     current_time = time.time()
     elapsed_time = current_time - start_time
     remaining_time = max(0, game_duration - elapsed_time)
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-    if not game_over:
-        if remaining_time <= 0 or pacman.score >= total_points:
-            game_over = True
-            if pacman.score >= total_points:
-                pacman.game_won = True
-                print("Vous avez gagné !")
-            else:
-                print("Temps écoulé ! Vous avez perdu.")
-            break
-    #keyboard events
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_a] or keys[pygame.K_UP]:
-        pacman.move("UP", board.layout)
-        pacman.check_collision(board.layout)
-    if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-        pacman.move("DOWN", board.layout)
-        pacman.check_collision(board.layout)
-    if keys[pygame.K_q] or keys[pygame.K_LEFT]:
-        pacman.move("LEFT", board.layout)
-        pacman.check_collision(board.layout)
-    if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-        pacman.move("RIGHT", board.layout)
-        pacman.check_collision(board.layout)
-
-    # Fill the screen with black
+    # Fill the screen with black UNE SEULE FOIS au début
     screen.fill(BLACk)
 
-    # Dessiner la grille
-    board.draw(screen)
-
-    # Draw the player
-    pacman.draw(screen)
-
-    # Draw the ghosts
-    for ghost in ghosts:
-        ghost.move(board.layout, pacman.position)
-        ghost.draw(screen)
-
-        if ghost.check_collision_with_pacman(pacman.position):
+    if not game_over:
+        # Logique de l'agent et du jeu
+        # Vérifier si tous les points sont collectés au lieu du timer
+        if len([cell for row in board.layout for cell in row if cell in ['.', 'o']]) == 0:
             game_over = True
-            pacman.game_won = False
-            print("Game Over! Un fantôme vous a attrapé!")
-            running = False
-            break
+            pacman.game_won = True
+            print("Victoire ! Tous les points ont été collectés !")
+            continue
 
-    # Afficher le timer et le score
-    timer_text = font.render(f"Time: {int(remaining_time)}s", True, WHITE)
-    #score_text = font.render(f"Score: {pacman.score}", True, WHITE)
-    points_text = font.render(f"Points: {pacman.score}/{total_points}", True, WHITE)
-    
-    screen.blit(timer_text, (10, 10))
-    #screen.blit(score_text, (10, 40))
-    screen.blit(points_text, (10, 70))
-
-    # Afficher le message de fin de jeu si nécessaire
-    if game_over:
-        game_over_text = font.render(
-            "YOU WIN!" if pacman.game_won else "GAME OVER!", 
-            True, 
-            WHITE
+        # Agent logic
+        current_state = agent.get_state(
+            pacman.position, 
+            [ghost.position for ghost in ghosts],
+            board.layout
         )
-        text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2))
-        screen.blit(game_over_text, text_rect)
+        
+        action = agent.choose_action(current_state, board.layout)
+        if action:
+            previous_points = pacman.score
+            pacman.move(action, board.layout)
+            pacman.check_collision(board.layout)
+            
+            # Calculer la récompense
+            reward = 0
+            if pacman.score > previous_points:
+                reward = 10  # Manger un point
+            if current_state[4] > 5:
+                reward -= 1  # Pénalité pour être loin des points
+        
+        # Ghost movement and collision check
+        for ghost in ghosts:
+            ghost.move(board.layout, pacman.position)
+            if ghost.check_collision_with_pacman(pacman.position):
+                reward = -100  # Collision avec fantôme
+                game_over = True
+                pacman.game_won = False
+                print("Game Over! Collision avec un fantôme!")
+                break
 
-    # Update the display
+        # Render only if game is still active
+        board.draw(screen)
+        pacman.draw(screen)
+        for ghost in ghosts:
+            ghost.draw(screen)
+
+        # UI elements
+        timer_text = font.render(f"Time: {int(remaining_time)}s", True, WHITE)
+        points_text = font.render(f"Points: {pacman.score}/{total_points}", True, WHITE)
+        screen.blit(timer_text, (10, 10))
+        screen.blit(points_text, (10, 70))
+
+    # Update display ONLY ONCE per frame
     pygame.display.flip()
     clock.tick(60)
+
+    if game_over:
+        episode += 1
+        scores.append(pacman.score)
+        epsilons.append(agent.epsilon)
+        print(f"Episode {episode}/{max_episodes}")
+        print(f"Score: {pacman.score}")
+        print(f"Epsilon: {agent.epsilon}")
+        
+        if episode < max_episodes:
+            # Reset game state without rendering
+            game_over = False
+            start_time = time.time()
+            pacman.reset(player_start_position.copy())
+            board.reset()
+            for ghost, start_pos in zip(ghosts, ghosts_start_positions):
+                ghost.position = start_pos.copy()
+            previous_score = 0
+            remaining_time = game_duration
+            continue  # Skip to next iteration immediately
 
 # Afficher le résultat final
 if game_over:
@@ -145,3 +165,25 @@ if game_over:
 
 pygame.quit()
 print("Fin du jeu")
+
+def plot_metrics(scores, epsilons):
+    episodes = range(len(scores))
+    
+    # Plot des scores
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(episodes, scores)
+    plt.title('Score par épisode')
+    plt.xlabel('Episode')
+    plt.ylabel('Score')
+    
+    # Plot de epsilon
+    plt.subplot(1, 2, 2)
+    plt.plot(episodes, epsilons)
+    plt.title('Epsilon par épisode')
+    plt.xlabel('Episode')
+    plt.ylabel('Epsilon')
+    
+    plt.tight_layout()
+    plt.savefig('training_metrics.png')
+    plt.close()
