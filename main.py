@@ -58,7 +58,7 @@ agent = Agent()
 
 # Add these variables to track the performance of the agent
 episode = 0
-max_episodes = 10
+max_episodes = 1000
 scores = []
 previous_score = 0
 epsilons = []
