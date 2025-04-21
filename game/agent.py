@@ -1,15 +1,16 @@
-import numpy as np
 import random
 import pickle
 
 class Agent:
     def __init__(self):
         self.q_table = {}
-        self.epsilon = 0.9 # Exploration rate
-        self.alpha = 0.1
-        self.epsilon_decay = 0.95
+        self.epsilon = 1.0  # Commencer à 1.0 pour plus d'exploration
+        self.epsilon_min = 0.01  # Valeur minimale d'epsilon
+        self.alpha = 0.1  # Learning rate
+        self.epsilon_decay = 0.995  # Decay plus lent
+        self.gamma = 0.99  # Augmenter gamma pour donner plus d'importance aux récompenses futures
         self.actions = ["UP", "DOWN", "LEFT", "RIGHT"]
-        self.gamma = 0.95 # Discount factor
+        self.previous_point_dist = float('inf')  # Ajouter cette ligne
 
     def get_state(self, pacman_pos, ghost_pos, board_layout):
         """
@@ -40,7 +41,7 @@ class Agent:
                     new_x, new_y = x + dx, y + dy
                     if (0 <= new_x < len(board_layout[0]) and
                         0 <= new_y < len(board_layout) and
-                        board_layout[new_x][new_y] != "#"
+                        board_layout[new_y][new_x] != "#"
                         and (new_x, new_y) not in visited):
                         to_visit.append(((new_x, new_y), dist + 1))
                         visited.add((new_x, new_y))
@@ -130,28 +131,35 @@ class Agent:
         return max(valid_actions, key=lambda action: self.q_table[state].get(action, 0))
     
     def learn(self, state, action, reward, next_state):
-        """
-        Update the Q-table based on the action taken and the reward received.
-        """
-        # Initialize state in Q-table if not present
+        """Mise à jour de la Q-table avec des récompenses ajustées"""
         if state not in self.q_table:
-            self.q_table[state] = {action: 0 for action in self.actions}
-    
+            self.q_table[state] = {a: 0 for a in self.actions}
+        
         if next_state not in self.q_table:
-            self.q_table[next_state] = {action: 0 for action in self.actions}
+            self.q_table[next_state] = {a: 0 for a in self.actions}
+
+        # Ajuster les récompenses basées sur la distance aux fantômes
+        ghost_dist = state[2]
+        if ghost_dist < 3:  # Danger immédiat
+            reward -= 50
+        elif ghost_dist > 5:  # Zone sûre
+            reward += 5
+
+        # Récompense pour se rapprocher des points
+        point_dist = state[4]
+        if point_dist < self.previous_point_dist:  # Utiliser self.previous_point_dist
+            reward += 10
         
-        # Get current Q-value
+        self.previous_point_dist = point_dist  # Mettre à jour pour la prochaine fois
+
+        # Q-learning update
         current_q = self.q_table[state].get(action, 0)
-        
-        # Get max Q-value for next state
         next_max_q = max(self.q_table[next_state].values())
-        
-        # Q-learning update rule
         new_q = current_q + self.alpha * (reward + self.gamma * next_max_q - current_q)
         self.q_table[state][action] = new_q
-        
+
         # Decay epsilon
-        self.epsilon = max(0.01, self.epsilon * self.epsilon_decay)
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     def save_qtable(self, filename='qtable.pkl'):
         """Sauvegarde la Q-table"""

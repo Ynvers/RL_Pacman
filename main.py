@@ -11,10 +11,12 @@ import numpy as np
 pygame.init()
 
 # Set up the game window
-SCREEN_WIDTH = 600
-SCREEN_HEIGHT = 450
+SCREEN_WIDTH = 565
+SCREEN_HEIGHT = 430
+
+# Set up the screen
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Pacman Game")
+pygame.display.set_caption("Pacman Game - RL Training")
 
 #Set up the color
 BLACk = (0, 0, 0)
@@ -51,17 +53,39 @@ else:
 # Initialisation the timer
 start_time = time.time()
 game_duration = 60  # 60 secondes
-total_points = sum(row.count('.') + row.count('o') for row in board.layout)
+total_points = sum(row.count('.') + row.count('o') * 5 for row in board.layout)
 
 # Initialisation de l'agent
 agent = Agent()
 
 # Add these variables to track the performance of the agent
 episode = 0
-max_episodes = 1000
+max_episodes = 5
 scores = []
 previous_score = 0
 epsilons = []
+
+def plot_metrics(scores, epsilons):
+    episodes = range(len(scores))
+    
+    # Plot des scores
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(episodes, scores)
+    plt.title('Score par épisode')
+    plt.xlabel('Episode')
+    plt.ylabel('Score')
+    
+    # Plot de epsilon
+    plt.subplot(1, 2, 2)
+    plt.plot(episodes, epsilons)
+    plt.title('Epsilon par épisode')
+    plt.xlabel('Episode')
+    plt.ylabel('Epsilon')
+    
+    plt.tight_layout()
+    plt.savefig('training_metrics.png')
+    plt.close()
 
 # Main loop
 running = True
@@ -99,16 +123,40 @@ while running:
         
         action = agent.choose_action(current_state, board.layout)
         if action:
-            previous_points = pacman.score
+            # Sauvegarder l'état avant le mouvement
+            previous_score = pacman.score
+            previous_pos = pacman.position.copy()
+            
+            # Effectuer le mouvement
             pacman.move(action, board.layout)
-            pacman.check_collision(board.layout)
+            pacman.check_collision(board.layout)  # Important: ajoutez cette ligne!
             
             # Calculer la récompense
             reward = 0
-            if pacman.score > previous_points:
-                reward = 10  # Manger un point
-            if current_state[4] > 5:
-                reward -= 1  # Pénalité pour être loin des points
+            
+            # Récompense pour manger des points
+            if pacman.score > previous_score:
+                reward += 10  # Récompense pour chaque point mangé
+            
+            # Pénalité pour rester sur place
+            if pacman.position == previous_pos:
+                reward -= 1
+            
+            # Mettre à jour l'agent avec le nouvel état
+            next_state = agent.get_state(
+                pacman.position,
+                [ghost.position for ghost in ghosts],
+                board.layout
+            )
+            agent.learn(current_state, action, reward, next_state)
+            
+            # Dans la boucle principale, après le mouvement
+            if action:
+                print(f"Action: {action}")
+                print(f"Position: {pacman.position}")
+                print(f"Score: {pacman.score}")
+                print(f"Reward: {reward}")
+                print("---")
         
         # Ghost movement and collision check
         for ghost in ghosts:
@@ -140,21 +188,30 @@ while running:
         episode += 1
         scores.append(pacman.score)
         epsilons.append(agent.epsilon)
-        print(f"Episode {episode}/{max_episodes}")
-        print(f"Score: {pacman.score}")
-        print(f"Epsilon: {agent.epsilon}")
         
-        if episode < max_episodes:
-            # Reset game state without rendering
-            game_over = False
-            start_time = time.time()
-            pacman.reset(player_start_position.copy())
-            board.reset()
-            for ghost, start_pos in zip(ghosts, ghosts_start_positions):
-                ghost.position = start_pos.copy()
-            previous_score = 0
-            remaining_time = game_duration
-            continue  # Skip to next iteration immediately
+        # Affichage plus concis des métriques
+        if episode % 10 == 0:  # Afficher seulement tous les 10 épisodes
+            print(f"Episode {episode}/{max_episodes}, Score: {pacman.score}, Epsilon: {agent.epsilon:.4f}")
+        
+        if episode >= max_episodes:  # Changé de < à >=
+            print("\nEntraînement terminé!")
+            print(f"Score moyen: {np.mean(scores):.2f}")
+            print(f"Score maximum: {max(scores)}")
+            # Tracer les graphiques
+            plot_metrics(scores, epsilons)
+            running = False  # Arrêter la boucle principale
+            break
+        
+        # Reset game state without rendering
+        game_over = False
+        start_time = time.time()
+        pacman.reset(player_start_position.copy())
+        board.reset()
+        for ghost, start_pos in zip(ghosts, ghosts_start_positions):
+            ghost.position = start_pos.copy()
+        previous_score = 0
+        remaining_time = game_duration
+        continue
 
 # Afficher le résultat final
 if game_over:
@@ -165,25 +222,3 @@ if game_over:
 
 pygame.quit()
 print("Fin du jeu")
-
-def plot_metrics(scores, epsilons):
-    episodes = range(len(scores))
-    
-    # Plot des scores
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(episodes, scores)
-    plt.title('Score par épisode')
-    plt.xlabel('Episode')
-    plt.ylabel('Score')
-    
-    # Plot de epsilon
-    plt.subplot(1, 2, 2)
-    plt.plot(episodes, epsilons)
-    plt.title('Epsilon par épisode')
-    plt.xlabel('Episode')
-    plt.ylabel('Epsilon')
-    
-    plt.tight_layout()
-    plt.savefig('training_metrics.png')
-    plt.close()

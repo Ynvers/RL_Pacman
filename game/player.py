@@ -62,31 +62,16 @@ class Player:
             print(f"New position (pixels): ({self.position[0]}, {self.position[1]})")
 
     def check_collision(self, board_layout):
-        """
-        Check if a collision was be
-        """
-        cell_x = int(self.position[0] // self.size)
-        cell_y = int(self.position[1] // self.size)
+        """Check if Pacman collides with dots and update score"""
+        x = int(self.position[0] // 20)
+        y = int(self.position[1] // 20)
         
-        if board_layout[cell_y][cell_x] == "#":
-            print("Collision with wall")
-            return True
-        elif board_layout[cell_y][cell_x] == ".":
-            print("Collision with point")
-            self.score += 1
-            board_layout[cell_y][cell_x] = " "  # Effacer le point
-            print(f"Score updated: {self.score}")
-        elif board_layout[cell_y][cell_x] == "o":
-            print("Collision with big point")
-            self.score += 5
-            board_layout[cell_y][cell_x] = " "  # Effacer le gros point
-            print(f"Score updated: {self.score}")
-        elif board_layout[cell_y][cell_x] == "G":
-            print("Collision with ghost")
-            self.score -= 100
-            board_layout[cell_y][cell_x] = " "
-            print(f"Score updated: {self.score}")
-        return False
+        if board_layout[y][x] == '.':
+            board_layout[y][x] = ' '  # Remove the dot
+            self.score += 1  # Increment score
+        elif board_layout[y][x] == 'o':
+            board_layout[y][x] = ' '  # Remove the power pellet
+            self.score += 5  # More points for power pellets
 
     def reset(self, start_position):
         """Reset player to initial state"""
