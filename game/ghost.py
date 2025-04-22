@@ -70,10 +70,45 @@ class Ghost:
         return None
 
 
-    def dfs_search(self):
+    def dfs_search(self, board_layout, target_position):
         """
         DFS search algorithm for the ghost.
         """
+        # Convert positions to grid coordinates
+        start = (int(self.position[0] // self.size), int(self.position[1] // self.size))
+        target = (int(target_position[0] // self.size), int(target_position[1] // self.size))
+
+        print(f"Start: {start}, Target: {target}")  # Debug print
+
+        # Initialize the queue and visited set
+        to_visit = [(start, [])]  # (position, path)
+        visited = set()
+
+        while to_visit:
+            current_position, path = to_visit.pop(-1)  # DFS uses LIFO order
+            
+            if current_position == target:
+                print(f"Path found: {path}")  # Debug print
+                return path[0] if path else None
+
+            if current_position not in visited:
+                visited.add(current_position)
+                
+                # Get neighbors for current position
+                x, y = current_position
+                for dx, dy, direction in [(0, -1, "UP"), (0, 1, "DOWN"), (-1, 0, "LEFT"), (1, 0, "RIGHT")]:
+                    new_x, new_y = x + dx, y + dy
+                    if (0 <= new_x < len(board_layout[0]) and 
+                        0 <= new_y < len(board_layout) and 
+                        board_layout[new_y][new_x] != "#"):
+                        next_pos = (new_x, new_y)
+                        if next_pos not in visited:
+                            new_path = path + [direction]
+                            to_visit.append((next_pos, new_path))
+                            print(f"Added to queue: pos={next_pos}, path={new_path}")  # Debug print
+
+        print("No path found")  # Debug print
+        return None
 
     def ucs_search(self):
         """

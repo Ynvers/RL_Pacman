@@ -19,6 +19,7 @@ WHITE = (255, 255, 255)
 YELLOW = (255, 255, 0)
 BLUE = (0, 0, 255)
 RED = (255, 0, 0)
+PINK = (255, 20, 147)
 
 #Set up the cell size
 CELL_SIZE = 20
@@ -41,7 +42,9 @@ if ghosts_start_positions is None:
 else:
     print("ghosts start position found: ", ghosts_start_positions)
     ghosts = [
-        Ghost.Ghost(position, 2, CELL_SIZE, RED, "BFS") for position in ghosts_start_positions
+        Ghost.Ghost(ghosts_start_positions[0], 2, CELL_SIZE, PINK, strategy="BFS"),
+        Ghost.Ghost(ghosts_start_positions[1], 2, CELL_SIZE, WHITE, strategy="BFS"),
+        Ghost.Ghost(ghosts_start_positions[2], 2, CELL_SIZE, RED, strategy="BFS"),
     ]
     print("ghosts created")
 
@@ -141,7 +144,7 @@ if game_over:
     if pacman.game_won:
         print("Félicitations! Vous avez gagné!")
     else:
-        print("Game Over! Un fantôme vous a attrapé!")
+        print("Game Over! Peut-être une autre fois")
 
 pygame.quit()
 print("Fin du jeu")
