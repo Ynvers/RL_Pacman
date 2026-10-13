@@ -53,16 +53,14 @@ class QLearningAgent:
         return self.q[state_key]
 
     def act(self, state_key: Hashable, greedy: bool = False) -> int:
-        """Choose an action.
+        """Choose an action."""
+        if not greedy and self.rng.random() < self.epsilon:
+            return self.rng.randrange(self.n_actions)
 
-        TODO(Ynvers): epsilon-greedy.
-          - if not greedy, with probability self.epsilon: random action
-            (use self.rng so runs are reproducible)
-          - otherwise: the action with the highest Q-value in this state.
-            Several actions can share the max (at the start everything is
-            0.0): break ties randomly, otherwise the agent always goes UP.
-        """
-        raise NotImplementedError("act() is yours to write")
+        q_vals =  self.values(state_key)
+        best = max(q_vals)
+        ties = [a for a, v in enumerate(q_vals) if v == best]
+        return self.rng.choice(ties)
 
     def update(
         self,
@@ -73,14 +71,16 @@ class QLearningAgent:
         done: bool,
     ) -> None:
         """Learn from one transition (s, a, r, s', done).
-
-        TODO(Ynvers): the Q-learning update.
-          - target: what this step was "worth" = immediate reward
-            + discounted value of the best action in the next state.
-            If the episode ended (done), there is no future: just reward.
-          - move Q(s, a) a fraction self.alpha of the way toward the target.
         """
-        raise NotImplementedError("update() is yours to write")
+        q_current = self.values(state_key)[action]
+
+        if done:
+            target = reward
+        else:
+            q_next = max(self.values(next_state_key))
+            target = reward + self.gamma * q_next
+
+        self.values(state_key)[action] = q_current + self.alpha * (target - q_current)
 
     def decay_epsilon(self) -> None:
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
