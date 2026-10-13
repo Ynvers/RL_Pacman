@@ -200,3 +200,38 @@ class PacmanEnv:
             ties = [o for o in options if dist.get(o, far) == best]
             moved.append(self.rng.choice(ties))
         return tuple(moved)
+
+    def features(self, state: State) -> tuple[object, ...]:
+        """Compact feature key for tabular agents on larger layout."""
+        pac_dist = self.grid.distances_from(state.pacman)
+
+        def _sign(x: int) -> int:
+            return (x > 0) - (x < 0)
+
+        def _bucket(d: int) -> int:
+            if d <= 1: return 0
+            if d <= 3: return 1
+            if d <= 6: return 2
+            return 3
+
+        # Nearest ghost
+        if state.ghosts:
+            nearest_g = min(state.ghosts, key=lambda g: pac_dist.get(g, 999))
+            ghost_d = pac_dist.get(nearest_g, 999)
+            ghost_dir = (_sign(nearest_g[0] - state.pacman[0]),
+                         _sign(nearest_g[1] - state.pacman[1]))
+        else:
+            ghost_d, ghost_dir = 999, (0, 0)
+
+        # Nearest food
+        all_food = state.dots | state.pellets
+        if all_food:
+            nearest_f = min(all_food, key=lambda f: pac_dist.get(f, 999))
+            food_d = pac_dist.get(nearest_f, 999)
+            food_dir = (_sign(nearest_f[0] - state.pacman[0]),
+                        _sign(nearest_f[1] - state.pacman[1]))
+        else:
+            food_d, food_dir = 0, (0, 0)
+
+        return (_bucket(ghost_d), ghost_dir, _bucket(food_d), food_dir,
+                state.frightened > 0)

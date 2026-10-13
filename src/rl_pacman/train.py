@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable
+from rl_pacman.env import State
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -32,16 +33,19 @@ def run_episode(
     episode: int = 0,
     learn: bool = False,
     greedy: bool = False,
+    key_fn: Callable[[State], Hashable] | None = None,
 ) -> EpisodeStats:
+    if key_fn is None:
+        key_fn = lambda s: s.key()
     state = env.reset()
     total = 0.0
     while True:
-        key = state.key()
+        key = key_fn(state)
         action = agent.act(key, greedy=greedy)
         result = env.step(action)
         if learn and isinstance(agent, QLearningAgent):
             agent.update(
-                key, action, result.reward, result.state.key(), result.done
+                key, action, result.reward, key_fn(result.state), result.done
             )
         total += result.reward
         state = result.state
@@ -63,10 +67,11 @@ def train(
     agent: QLearningAgent,
     episodes: int,
     log_every: int = 500,
+    key_fn: Callable[[State], Hashable] | None = None,
 ) -> list[EpisodeStats]:
     history: list[EpisodeStats] = []
     for ep in range(1, episodes + 1):
-        stats = run_episode(env, agent, episode=ep, learn=True)
+        stats = run_episode(env, agent, episode=ep, learn=True, key_fn=key_fn)
         agent.decay_epsilon()
         history.append(stats)
         if log_every and ep % log_every == 0:

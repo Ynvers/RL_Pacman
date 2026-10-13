@@ -38,11 +38,64 @@ to add your own).
 
 ## Results
 
-_TODO_
+All runs use the default hyperparameters (`alpha=0.1`, `gamma=0.95`,
+`epsilon_decay=0.9997`). Evaluation over 500 greedy episodes.
 
-## Why tabular Q-learning stops at small mazes
+### Raw state key (no `--features`)
 
-_TODO_
+| Layout | Episodes | Win rate | Mean reward | States in Q-table |
+|--------|----------|----------|-------------|-------------------|
+| tiny   | 4 000    | ~99.6 %  | —           | ~400              |
+| small  | 20 000   | ~91.8 %  | —           | ~80 000           |
+| small  | 20 000 (random baseline) | 0.0 % | — | — |
+
+On `small` the Q-table grows without bound and the reward plateaus
+around −300 after 19 000 episodes: the state space is too large to
+converge in a reasonable number of episodes.
+
+### Feature key (`--features`)
+
+Compact state: bucketed BFS distance + sign-direction to nearest ghost
+and nearest food, plus a frightened boolean (≤ 2 592 distinct states).
+
+| Layout  | Episodes | Win rate (train) | Win rate (greedy eval) | Mean reward (greedy) |
+|---------|----------|------------------|------------------------|----------------------|
+| classic | 50 000   | 0.0 %            | 0.0 %                  | −478                 |
+| classic (random baseline) | — | — | 0.0 % | −476 |
+
+The reward improves steadily during training (−457 → ~+250) and the
+Q-table saturates at ~1 360 states, both signs that the agent is
+learning. However the greedy evaluation matches random — see the next
+section for why.
+
+## Why tabular Q-learning stops at classic
+
+**Raw state key — state space explosion.**
+The state key includes the exact set of remaining dots as a `frozenset`.
+On `small` (~20 dots) that is up to 2²⁰ ≈ 1 million dot configurations
+alone. Most states are visited at most once; the Q-table never converges.
+
+**Feature key — feature aliasing.**
+Replacing the raw key with compact features (distance/direction to nearest
+ghost and food) collapses the state space to ~2 600 entries. The Q-table
+now converges and the training reward climbs. But many distinct board
+positions map to the same feature vector: the agent cannot tell whether
+it is in the top-left corridor or the bottom-right one.
+
+In greedy evaluation this causes **loops**: the agent sees the same
+feature state repeatedly and always picks the same action, cycling until
+it walks into a ghost. During training, the 5 % residual exploration
+accidentally breaks those loops — hence the positive training reward.
+Remove exploration and the policy collapses to random performance.
+
+**What would actually work on `classic`.**
+The aliasing problem calls for a richer representation:
+
+- Add wall bits (4 binary flags for the four neighbours) to the feature
+  key — still tabular, ~40 k states, breaks most loops.
+- Or switch to a neural network (Deep Q-Network / DQN): the network
+  generalises across positions without hand-crafted features, and handles
+  the full `classic` board.
 
 ## Project layout
 

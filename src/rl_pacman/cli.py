@@ -31,7 +31,9 @@ def cmd_train(args: argparse.Namespace) -> None:
         epsilon_decay=args.epsilon_decay,
         seed=args.seed,
     )
-    history = train(env, agent, args.episodes, log_every=args.log_every)
+    key_fn = (lambda s: env.features(s)) if args.features else None
+    history = train(env, agent, args.episodes, log_every=args.log_every,
+                    key_fn=key_fn)
 
     out = Path(args.out)
     agent.save(out / "qtable.pkl")
@@ -86,6 +88,8 @@ def main() -> None:
     p.add_argument("--eval-episodes", type=int, default=500)
     p.add_argument("--log-every", type=int, default=1000)
     p.add_argument("--out", default="runs/latest")
+    p.add_argument("--features", action="store_true",
+                   help="use compact feature key instead of raw state")
     p.set_defaults(func=cmd_train)
 
     p = sub.add_parser("watch", help="watch a trained agent play")
