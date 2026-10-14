@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from rl_pacman.agents import QLearningAgent
+from rl_pacman.agents import DQLAgent, QLearningAgent
 from rl_pacman.env import PacmanEnv
+from rl_pacman.utils import encode_state
 
 
 class Agent(Protocol):
@@ -85,6 +86,69 @@ def train(
             )
     return history
 
+def train_dql(
+    env: PacmanEnv,
+    agent: DQLAgent,
+    episodes: int,
+    target_update: int = 100,
+    learn_every: int = 4,
+    log_every: int = 500,
+) -> list[EpisodeStats]:
+    """Train a DQN agent with replay and a periodically synced target network."""
+    if target_update <= 0:
+        raise ValueError("target_update must be greater than zero")
+    if episodes < 0:
+        raise ValueError("episodes must not be negative")
+
+    history: list[EpisodeStats] = []
+    step_count = 0
+
+    for ep in range(1, episodes + 1):
+        state = env.reset()
+        encoded = encode_state(env.features(state))
+        total_reward = 0.0
+
+        while True:
+            action = agent.act(encoded)
+            result = env.step(action)
+
+            next_encoded = encode_state(env.features(result.state))
+            agent.buffer.push(
+                encoded, action, result.reward, next_encoded, result.done
+            )
+            step_count += 1
+            if step_count % learn_every == 0:
+                agent.learn()
+            if step_count % target_update == 0:
+                agent.update_target()
+
+            total_reward += result.reward
+            encoded = next_encoded
+            state = result.state
+            if result.done:
+                break
+
+        stats = EpisodeStats(
+            episode=ep,
+            total_reward=total_reward,
+            steps=env.steps,
+            outcome=result.outcome,
+            dots_left=len(state.dots) + len(state.pellets),
+            epsilon=agent.epsilon,
+        )
+        history.append(stats)
+        agent.decay_epsilon()
+
+        if log_every and ep % log_every == 0:
+            window = history[-log_every:]
+            mean = sum(s.total_reward for s in window) / len(window)
+            wins = sum(s.outcome == "win" for s in window) / len(window)
+            print(
+                f"episode {ep:>6}  mean reward {mean:8.1f}  "
+                f"win rate {wins:5.1%}  epsilon {agent.epsilon:.3f}"
+            )
+
+    return history
 
 def evaluate(env: PacmanEnv, agent: Agent, episodes: int) -> dict[str, float]:
     """Play `episodes` greedy games without learning."""

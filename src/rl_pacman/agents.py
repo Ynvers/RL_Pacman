@@ -10,6 +10,9 @@ from torch import nn
 import torch
 from collections import deque
 
+from rl_pacman.env import PacmanEnv
+from rl_pacman.utils import encode_state
+
 
 class RandomAgent:
     """Baseline: picks a uniformly random action every step."""
@@ -102,19 +105,18 @@ class DQNetwork(nn.Module):
 
     def __init__(
         self,
+        n_inputs: int,
         n_actions: int,
-        seed: int | None = None,
     ) -> None:
         super().__init__()
-        self.n_actions = n_actions
-        self.rng = random.Random(seed)
-        self.fc1 = nn.Linear(7, 64)
-        self.fc2 = nn.Linear(64, n_actions)
+        self.fc1 = nn.Linear(n_inputs, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, n_actions)
 
     def forward(self, x):
-        result = self.fc1(x)
-        result = nn.functional.relu(result)
-        return self.fc2(result)
+        x = nn.functional.relu(self.fc1(x))
+        x = nn.functional.relu(self.fc2(x))
+        return self.fc3(x)
 
 
 class ReplayBuffer():
@@ -135,9 +137,10 @@ class ReplayBuffer():
 class DQLAgent:
     def __init__(
         self,
+        env: PacmanEnv,
         capacity,
         n_actions: int,
-        alpha: float = 0.1,
+        lr: float = 1e-3,
         gamma: float = 0.95,
         epsilon: float = 1.0,
         epsilon_min: float = 0.05,
@@ -145,16 +148,17 @@ class DQLAgent:
         seed: int | None = None,
     ) -> None:
         self.n_actions = n_actions
-        self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.rng = random.Random(seed)
-        self.policy_net = DQNetwork(n_actions)
-        self.target_net = DQNetwork(n_actions)
+        sample = encode_state(env.features(env.reset()))
+        n_inputs = len(sample)
+        self.policy_net = DQNetwork(n_inputs, n_actions)
+        self.target_net = DQNetwork(n_inputs, n_actions)
         self.buffer = ReplayBuffer(capacity)
-        self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=alpha)
+        self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
 
@@ -183,10 +187,12 @@ class DQLAgent:
 
         predicted = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         with torch.no_grad():
-            next_q = self.target_net(next_states).max(1).values
+            # Double DQN: policy_net selects the action, target_net evaluates it
+            best_actions = self.policy_net(next_states).argmax(1, keepdim=True)
+            next_q = self.target_net(next_states).gather(1, best_actions).squeeze(1)
         targets = rewards + self.gamma * next_q * (1 - dones)
 
-        loss = nn.MSELoss()(predicted, targets)
+        loss = nn.SmoothL1Loss()(predicted, targets)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()

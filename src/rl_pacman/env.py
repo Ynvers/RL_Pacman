@@ -205,33 +205,54 @@ class PacmanEnv:
         """Compact feature key for tabular agents on larger layout."""
         pac_dist = self.grid.distances_from(state.pacman)
 
-        def _sign(x: int) -> int:
-            return (x > 0) - (x < 0)
-
         def _bucket(d: int) -> int:
             if d <= 1: return 0
             if d <= 3: return 1
             if d <= 6: return 2
             return 3
 
-        # Nearest ghost
-        if state.ghosts:
-            nearest_g = min(state.ghosts, key=lambda g: pac_dist.get(g, 999))
-            ghost_d = pac_dist.get(nearest_g, 999)
-            ghost_dir = (_sign(nearest_g[0] - state.pacman[0]),
-                         _sign(nearest_g[1] - state.pacman[1]))
-        else:
-            ghost_d, ghost_dir = 999, (0, 0)
+        def _sign(x: int) -> int:
+            return (x > 0) - (x < 0)
 
-        # Nearest food
-        all_food = state.dots | state.pellets
-        if all_food:
-            nearest_f = min(all_food, key=lambda f: pac_dist.get(f, 999))
-            food_d = pac_dist.get(nearest_f, 999)
-            food_dir = (_sign(nearest_f[0] - state.pacman[0]),
-                        _sign(nearest_f[1] - state.pacman[1]))
-        else:
-            food_d, food_dir = 0, (0, 0)
+        # All ghosts sorted by distance (closest first for stable ordering)
+        ghost_features: list[object] = []
+        for g in sorted(state.ghosts, key=lambda g: pac_dist.get(g, 999)):
+            d = pac_dist.get(g, 999)
+            ghost_features.append(_bucket(d))
+            ghost_features.append((_sign(g[0] - state.pacman[0]),
+                                   _sign(g[1] - state.pacman[1])))
 
-        return (_bucket(ghost_d), ghost_dir, _bucket(food_d), food_dir,
-                state.frightened > 0)
+        # Food features
+        all_food = sorted(state.dots | state.pellets,
+                          key=lambda f: pac_dist.get(f, 999))
+        n_food = len(all_food)
+
+        def _food_feature(f):
+            d = pac_dist.get(f, 999)
+            return (_bucket(d), (_sign(f[0] - state.pacman[0]),
+                                 _sign(f[1] - state.pacman[1])))
+
+        if n_food >= 1:
+            d1, dir1 = _food_feature(all_food[0])
+        else:
+            d1, dir1 = 0, (0, 0)
+
+        # Farthest food: helps track down the last isolated dots
+        if n_food >= 1:
+            df, dirf = _food_feature(all_food[-1])
+        else:
+            df, dirf = 0, (0, 0)
+
+        # Remaining food count (bucketed)
+        if n_food == 0:    food_count = 0
+        elif n_food <= 5:  food_count = 1
+        elif n_food <= 15: food_count = 2
+        elif n_food <= 40: food_count = 3
+        else:              food_count = 4
+
+        legal = set(self.grid.legal_actions(state.pacman))
+        walls = tuple(a not in legal for a in Action)
+
+        return (*ghost_features,
+                d1, dir1, df, dirf,
+                food_count, state.frightened > 0, walls)
