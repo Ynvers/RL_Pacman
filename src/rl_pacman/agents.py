@@ -6,6 +6,9 @@ import pickle
 import random
 from collections.abc import Hashable
 from pathlib import Path
+from torch import nn
+import torch
+from collections import deque
 
 
 class RandomAgent:
@@ -38,9 +41,9 @@ class QLearningAgent:
         seed: int | None = None,
     ) -> None:
         self.n_actions = n_actions
-        self.alpha = alpha  # learning rate
-        self.gamma = gamma  # discount factor
-        self.epsilon = epsilon  # exploration rate
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.rng = random.Random(seed)
@@ -93,3 +96,103 @@ class QLearningAgent:
     def load(self, path: Path) -> None:
         with path.open("rb") as f:
             self.q = pickle.load(f)
+
+
+class DQNetwork(nn.Module):
+
+    def __init__(
+        self,
+        n_actions: int,
+        seed: int | None = None,
+    ) -> None:
+        super().__init__()
+        self.n_actions = n_actions
+        self.rng = random.Random(seed)
+        self.fc1 = nn.Linear(7, 64)
+        self.fc2 = nn.Linear(64, n_actions)
+
+    def forward(self, x):
+        result = self.fc1(x)
+        result = nn.functional.relu(result)
+        return self.fc2(result)
+
+
+class ReplayBuffer():
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.memory = deque(maxlen=capacity)
+
+    def push(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
+
+
+class DQLAgent:
+    def __init__(
+        self,
+        capacity,
+        n_actions: int,
+        alpha: float = 0.1,
+        gamma: float = 0.95,
+        epsilon: float = 1.0,
+        epsilon_min: float = 0.05,
+        epsilon_decay: float = 0.999,
+        seed: int | None = None,
+    ) -> None:
+        self.n_actions = n_actions
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.rng = random.Random(seed)
+        self.policy_net = DQNetwork(n_actions)
+        self.target_net = DQNetwork(n_actions)
+        self.buffer = ReplayBuffer(capacity)
+        self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=alpha)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
+
+    def act(self, state: list[float], greedy: bool = False) -> int:
+        if not greedy and self.rng.random() < self.epsilon:
+            return self.rng.randrange(self.n_actions)
+
+        x = torch.tensor(state, dtype=torch.float32)
+
+        with torch.no_grad():
+            q_values = self.policy_net(x)
+
+        return q_values.argmax().item()
+
+    def learn(self, batch_size: int = 64) -> None:
+        if len(self.buffer) < batch_size:
+            return
+
+        transitions = self.buffer.sample(batch_size)
+        states, actions, rewards, next_states, dones = zip(*transitions)
+        states = torch.tensor(states, dtype=torch.float32)
+        next_states = torch.tensor(next_states, dtype=torch.float32)
+        actions = torch.tensor(actions, dtype=torch.long)
+        rewards = torch.tensor(rewards, dtype=torch.float32)
+        dones = torch.tensor(dones, dtype=torch.float32)
+
+        predicted = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+        with torch.no_grad():
+            next_q = self.target_net(next_states).max(1).values
+        targets = rewards + self.gamma * next_q * (1 - dones)
+
+        loss = nn.MSELoss()(predicted, targets)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+    def decay_epsilon(self) -> None:
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
+    def update_target(self) -> None:
+        self.target_net.load_state_dict(self.policy_net.state_dict())
