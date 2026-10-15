@@ -161,10 +161,15 @@ def train_dql(
 
     return history
 
-def evaluate(env: PacmanEnv, agent: Agent, episodes: int) -> dict[str, float]:
+def evaluate(
+    env: PacmanEnv,
+    agent: Agent,
+    episodes: int,
+    key_fn: Callable[[State], Hashable] | None = None,
+) -> dict[str, float]:
     """Play `episodes` greedy games without learning."""
     runs = [
-        run_episode(env, agent, episode=i, greedy=True)
+        run_episode(env, agent, episode=i, greedy=True, key_fn=key_fn)
         for i in range(episodes)
     ]
     n = len(runs)

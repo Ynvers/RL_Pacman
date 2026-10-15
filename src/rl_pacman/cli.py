@@ -54,6 +54,7 @@ def cmd_train(args: argparse.Namespace) -> None:
 
 
 def cmd_train_dql(args: argparse.Namespace) -> None:
+    import numpy as np
     from rl_pacman.train import evaluate, plot_history, save_history, train_dql
     from rl_pacman.utils import encode_state_cnn
 
@@ -67,7 +68,8 @@ def cmd_train_dql(args: argparse.Namespace) -> None:
         epsilon_decay=args.epsilon_decay,
         seed=args.seed,
     )
-    encode_fn = lambda s: encode_state_cnn(s, env.grid)
+    # store compact numpy arrays in the buffer, not nested Python lists
+    encode_fn = lambda s: np.array(encode_state_cnn(s, env.grid), dtype=np.float32)
     history = train_dql(
         env, agent, args.episodes,
         target_update=args.target_update,
@@ -76,14 +78,17 @@ def cmd_train_dql(args: argparse.Namespace) -> None:
         encode_fn=encode_fn,
     )
 
+    import torch
     out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    torch.save(agent.policy_net.state_dict(), out / "policy_net.pt")
     save_history(history, out / "history_pdd.csv")
     try:
         plot_history(history, out / "training_pdd.png")
     except ImportError:
         print("(install the `plot` extra to get training_pdd.png)")
 
-    trained = evaluate(env, agent, args.eval_episodes)
+    trained = evaluate(env, agent, args.eval_episodes, key_fn=encode_fn)
     baseline = evaluate(env, RandomAgent(env.n_actions, seed=args.seed), args.eval_episodes)
     print(f"\n{'':10}{'win':>8}{'death':>8}{'reward':>10}{'steps':>8}")
     for name, m in (("random", baseline), ("pdd-dqn", trained)):
