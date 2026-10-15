@@ -9,8 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from rl_pacman.agents import DQLAgent, QLearningAgent
-from rl_pacman.env import PacmanEnv
+from collections.abc import Callable
+
+from rl_pacman.agents import DQLAgent, DQLAgentCNN, QLearningAgent
+from rl_pacman.env import PacmanEnv, State
 from rl_pacman.utils import encode_state
 
 
@@ -88,13 +90,20 @@ def train(
 
 def train_dql(
     env: PacmanEnv,
-    agent: DQLAgent,
+    agent: DQLAgent | DQLAgentCNN,
     episodes: int,
     target_update: int = 100,
     learn_every: int = 4,
     log_every: int = 500,
+    encode_fn: Callable[[State], list] | None = None,
 ) -> list[EpisodeStats]:
-    """Train a DQN agent with replay and a periodically synced target network."""
+    """Train a DQN agent with replay and a periodically synced target network.
+
+    encode_fn converts a State to the encoded representation the agent expects.
+    Defaults to the hand-crafted feature vector; pass encode_state_cnn for CNN.
+    """
+    if encode_fn is None:
+        encode_fn = lambda s: encode_state(env.features(s))
     if target_update <= 0:
         raise ValueError("target_update must be greater than zero")
     if episodes < 0:
@@ -105,14 +114,14 @@ def train_dql(
 
     for ep in range(1, episodes + 1):
         state = env.reset()
-        encoded = encode_state(env.features(state))
+        encoded = encode_fn(state)
         total_reward = 0.0
 
         while True:
             action = agent.act(encoded)
             result = env.step(action)
 
-            next_encoded = encode_state(env.features(result.state))
+            next_encoded = encode_fn(result.state)
             agent.buffer.push(
                 encoded, action, result.reward, next_encoded, result.done
             )
@@ -143,9 +152,11 @@ def train_dql(
             window = history[-log_every:]
             mean = sum(s.total_reward for s in window) / len(window)
             wins = sum(s.outcome == "win" for s in window) / len(window)
+            mean_dots = sum(s.dots_left for s in window) / len(window)
             print(
                 f"episode {ep:>6}  mean reward {mean:8.1f}  "
-                f"win rate {wins:5.1%}  epsilon {agent.epsilon:.3f}"
+                f"win rate {wins:5.1%}  epsilon {agent.epsilon:.3f}  "
+                f"dots_left {mean_dots:5.1f}"
             )
 
     return history

@@ -119,6 +119,37 @@ class DQNetwork(nn.Module):
         return self.fc3(x)
 
 
+class DQNetworkCNN(nn.Module):
+    """Convolutional network: takes the full (C, H, W) game grid as input.
+
+    Two conv+pool blocks halve the spatial dims twice:
+    (C, H, W) → (16, H/2, W/2) → (32, H/4, W/4) → flatten → FC.
+    """
+
+    def __init__(self, n_channels: int, height: int, width: int, n_actions: int) -> None:
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(n_channels, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+        )
+        h_out = height // 4
+        w_out = width // 4
+        self.fc = nn.Sequential(
+            nn.Linear(32 * h_out * w_out, 256),
+            nn.ReLU(),
+            nn.Linear(256, n_actions),
+        )
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = x.flatten(1)
+        return self.fc(x)
+
+
 class ReplayBuffer():
     def __init__(self, capacity):
         self.capacity = capacity
@@ -188,6 +219,74 @@ class DQLAgent:
         predicted = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         with torch.no_grad():
             # Double DQN: policy_net selects the action, target_net evaluates it
+            best_actions = self.policy_net(next_states).argmax(1, keepdim=True)
+            next_q = self.target_net(next_states).gather(1, best_actions).squeeze(1)
+        targets = rewards + self.gamma * next_q * (1 - dones)
+
+        loss = nn.SmoothL1Loss()(predicted, targets)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+    def decay_epsilon(self) -> None:
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
+    def update_target(self) -> None:
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+
+
+class DQLAgentCNN:
+    """DQL agent using a convolutional network on the full game grid."""
+
+    def __init__(
+        self,
+        env: PacmanEnv,
+        capacity: int,
+        n_actions: int,
+        lr: float = 1e-3,
+        gamma: float = 0.95,
+        epsilon: float = 1.0,
+        epsilon_min: float = 0.05,
+        epsilon_decay: float = 0.999,
+        seed: int | None = None,
+    ) -> None:
+        self.n_actions = n_actions
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.rng = random.Random(seed)
+        n_channels = 6
+        H, W = env.grid.height, env.grid.width
+        self.policy_net = DQNetworkCNN(n_channels, H, W, n_actions)
+        self.target_net = DQNetworkCNN(n_channels, H, W, n_actions)
+        self.buffer = ReplayBuffer(capacity)
+        self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
+
+    def act(self, state: list, greedy: bool = False) -> int:
+        if not greedy and self.rng.random() < self.epsilon:
+            return self.rng.randrange(self.n_actions)
+        # unsqueeze(0) adds the batch dimension required by Conv2d
+        x = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        with torch.no_grad():
+            q_values = self.policy_net(x)
+        return q_values.squeeze(0).argmax().item()
+
+    def learn(self, batch_size: int = 64) -> None:
+        if len(self.buffer) < batch_size:
+            return
+        transitions = self.buffer.sample(batch_size)
+        states, actions, rewards, next_states, dones = zip(*transitions)
+        states = torch.tensor(states, dtype=torch.float32)
+        next_states = torch.tensor(next_states, dtype=torch.float32)
+        actions = torch.tensor(actions, dtype=torch.long)
+        rewards = torch.tensor(rewards, dtype=torch.float32)
+        dones = torch.tensor(dones, dtype=torch.float32)
+
+        predicted = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+        with torch.no_grad():
             best_actions = self.policy_net(next_states).argmax(1, keepdim=True)
             next_q = self.target_net(next_states).gather(1, best_actions).squeeze(1)
         targets = rewards + self.gamma * next_q * (1 - dones)

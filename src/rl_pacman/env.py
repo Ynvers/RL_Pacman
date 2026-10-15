@@ -29,9 +29,10 @@ class Rewards:
     step: float = -1.0
     dot: float = 10.0
     pellet: float = 50.0
-    eat_ghost: float = 200.0
-    win: float = 500.0
+    eat_ghost: float = 50.0
+    win: float = 1000.0
     death: float = -500.0
+    dots_remaining: float = 0.0  # per dot left at death or timeout
 
 
 @dataclass(frozen=True)
@@ -149,11 +150,13 @@ class PacmanEnv:
         outcome = ""
         if dead:
             reward += rw.death
+            reward += rw.dots_remaining * (len(dots) + len(pellets))
             outcome = "death"
         elif not dots and not pellets:
             reward += rw.win
             outcome = "win"
         elif self.steps >= self.config.max_steps:
+            reward += rw.dots_remaining * (len(dots) + len(pellets))
             outcome = "timeout"
 
         self.done = outcome != ""
