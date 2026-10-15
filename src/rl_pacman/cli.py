@@ -1,11 +1,11 @@
-"""Command line: `rl-pacman play | train | watch`."""
+"""Command line: `rl-pacman play | train | train-dql | watch`."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from rl_pacman.agents import QLearningAgent, RandomAgent
+from rl_pacman.agents import DQLAgentCNNPDD, QLearningAgent, RandomAgent
 from rl_pacman.env import EnvConfig, PacmanEnv, State
 from rl_pacman.layouts import LAYOUTS
 
@@ -53,6 +53,45 @@ def cmd_train(args: argparse.Namespace) -> None:
     print(f"\nsaved to {out}/")
 
 
+def cmd_train_dql(args: argparse.Namespace) -> None:
+    from rl_pacman.train import evaluate, plot_history, save_history, train_dql
+    from rl_pacman.utils import encode_state_cnn
+
+    env = _env(args)
+    agent = DQLAgentCNNPDD(
+        env,
+        capacity=args.capacity,
+        n_actions=env.n_actions,
+        lr=args.lr,
+        gamma=args.gamma,
+        epsilon_decay=args.epsilon_decay,
+        seed=args.seed,
+    )
+    encode_fn = lambda s: encode_state_cnn(s, env.grid)
+    history = train_dql(
+        env, agent, args.episodes,
+        target_update=args.target_update,
+        learn_every=args.learn_every,
+        log_every=args.log_every,
+        encode_fn=encode_fn,
+    )
+
+    out = Path(args.out)
+    save_history(history, out / "history_pdd.csv")
+    try:
+        plot_history(history, out / "training_pdd.png")
+    except ImportError:
+        print("(install the `plot` extra to get training_pdd.png)")
+
+    trained = evaluate(env, agent, args.eval_episodes)
+    baseline = evaluate(env, RandomAgent(env.n_actions, seed=args.seed), args.eval_episodes)
+    print(f"\n{'':10}{'win':>8}{'death':>8}{'reward':>10}{'steps':>8}")
+    for name, m in (("random", baseline), ("pdd-dqn", trained)):
+        print(f"{name:10}{m['win_rate']:8.1%}{m['death_rate']:8.1%}"
+              f"{m['mean_reward']:10.1f}{m['mean_steps']:8.1f}")
+    print(f"\nsaved to {out}/")
+
+
 def cmd_watch(args: argparse.Namespace) -> None:
     from rl_pacman import render
 
@@ -91,6 +130,20 @@ def main() -> None:
     p.add_argument("--features", action="store_true",
                    help="use compact feature key instead of raw state")
     p.set_defaults(func=cmd_train)
+
+    p = sub.add_parser("train-dql", help="train a Prioritized Double Dueling DQN agent (CNN)")
+    common(p, "classic")
+    p.add_argument("--episodes", type=int, default=5_000)
+    p.add_argument("--capacity", type=int, default=100_000)
+    p.add_argument("--lr", type=float, default=2.5e-4)
+    p.add_argument("--gamma", type=float, default=0.95)
+    p.add_argument("--epsilon-decay", type=float, default=0.9998)
+    p.add_argument("--target-update", type=int, default=500)
+    p.add_argument("--learn-every", type=int, default=4)
+    p.add_argument("--eval-episodes", type=int, default=100)
+    p.add_argument("--log-every", type=int, default=500)
+    p.add_argument("--out", default="runs/latest")
+    p.set_defaults(func=cmd_train_dql)
 
     p = sub.add_parser("watch", help="watch a trained agent play")
     common(p, "small")

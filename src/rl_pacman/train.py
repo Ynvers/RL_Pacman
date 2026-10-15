@@ -11,7 +11,7 @@ from typing import Protocol
 
 from collections.abc import Callable
 
-from rl_pacman.agents import DQLAgent, DQLAgentCNN, QLearningAgent
+from rl_pacman.agents import DQLAgent, DQLAgentCNN, DQLAgentCNNPDD, QLearningAgent
 from rl_pacman.env import PacmanEnv, State
 from rl_pacman.utils import encode_state
 
@@ -90,7 +90,7 @@ def train(
 
 def train_dql(
     env: PacmanEnv,
-    agent: DQLAgent | DQLAgentCNN,
+    agent: DQLAgent | DQLAgentCNN | DQLAgentCNNPDD,
     episodes: int,
     target_update: int = 100,
     learn_every: int = 4,
